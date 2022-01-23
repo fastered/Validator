@@ -1,10 +1,4 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: Valera
- * Date: 22.01.2022
- * Time: 20:28
- */
 
 class Validator
 {
@@ -17,7 +11,7 @@ class Validator
     {
         $this->values = $post_data;
         if($pdo == null){
-            $this->db = new PDO('mysql:host=192.168.1.14;dbname=studies;charset=utf8', 'student', 'Student123123456!');
+            $this->db = new PDO('mysql:host=hostname;dbname=yourDB;charset=utf8', 'username', 'password');
         }else{
             $this->db = $pdo;
         }
