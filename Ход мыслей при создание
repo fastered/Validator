@@ -1,0 +1,234 @@
+Создание компоненты валидатора:
+•	Создаем class Validator.php
+•	Первое подключем его в index.php чтобы можно было проверить
+•	Для валидации данных создадим массив (такой же можно получить из массива пост или гет)  $post = [
+    'name' => '',
+    'email' => 'kb618425@gmail.com',
+    'tel' => '+79226472235',
+    'password' => 'password',
+    'confirm_password' => 'password',
+    'date' => '2022-01-22'
+];
+•	Создаем новый обьект валидатора, назовем его $validation ($validation = new Validator();)
+•	Для проверки первого поля нужно сделать метод с таким же именем(field) которому будем передавать имя поля, далее сразу же вызовем метод required, который будет проверять пустое или нет это поле
+$validation->field('name')->required();
+•	Переходим в наш класс и понимаю что нужно сделать class __construct, который будет принимать массив, и сохранять его в защищённый массив  внутри класса, назовем его values
+•	Перехожу в метод field где нужно присваивать защищенной переменной field (в ней я буду хранить имя проверяемому поле), ее так же нужно создать, далее возвращаю объект, проверяю, объект с заданным поле возвращается
+•	Для проверки на пустое значение, делаем метод required, внутри проверяем массив values с ключом имени поля (полученный из метода field, Который ранее при вызове сохраняем в внутренней переменной $field) пустой ли он, если да, нужно сохранить ошибку в новую переменную…
+if($this->values[$this->field] == ''){
+    // нужно сохранить ошибку
+}
+•	…вернее, будем предусмотрительнее и сделаем  защищённый массив, назовем $errors 
+•	Чтобы в нем сохранить ошибки, делаем защищенный метод, назовем write_error, он будет принимать текст ошибки и сохранять в внутренний массив error;
+protected function write_error($error = '')
+{
+    $this->errors[]=$error;
+    }
+•	Вернемся к публичному методу required, сделаем ему строковый параметр 
+$other_error_message, с помощью которого сможем задать любое другое сообщение об ошибке… public function required($other_error_message = '')
+{
+    if($this->values[$this->field] == ''){
+        if(empty($other_error_message)){
+            $this->write_error('Поле "'.$this->field.'" не может пустым!');
+        }else{
+            $this->write_error($other_error_message);
+        }
+
+    }
+    return $this;
+}
+
+•	Теперь нужно сделать метод для проверки наличия ошибок и вывести их
+•	Первый будет метод all_right, он проверит наличие ошибок, и вернет правду или ложь 
+public function all_right()
+{
+    if(empty($this->errors)){
+        return true;
+    }
+    return false;
+}
+
+•	Для вывода ошибок при их наличии, сделаем метод show_errors, который будет возвращать все ошибки из защищённого массива $errors
+	public function show_erors(){
+    	$text ='';
+    	foreach ($this->errors as $error) {
+        $text.=$error.'<br>';
+    	}	
+    	return $text;
+}
+•	Для удобной проверки ошибок , напишем код на главной странице который покажет в флэш сообщениях прошли проверку или же ошибки, использовал компоненту FlashAlert сделанной для этого же экзамена:
+if($validation->all_right()){
+    $alert->success = 'Проверку прошли!';
+    echo $alert->get();
+}else{
+    $alert->danger = $validation->show_erors();
+    echo $alert->get();
+}
+•	При проверке допустил ошибку при передаче параметра имени поля в методе field, а уведомление получил о том как будто он пустой, решил сделать на отсутствующие параметры (имя поля) в массиве отдельное сообщение, сделал для этого защищенную функцию, которая проверит наличие передаваемого параметра имя поля…
+protected function not_exist_field()
+{
+    if (!isset($this->values[$this->field])){
+        
+        return true;
+    }
+    return false;
+}
+
+•	И добавил эту проверку в методе field для записи ошибки…
+…
+if($this->not_exist_field()){
+    $this->write_error('Поле "'.$this->field.'" не существует');
+}
+…
+•	В методе required добавил это проверку в самом начале и возврат объекта сразу…
+if ($this->not_exist_field())
+    return $this;
+•	
+•	 Функция работает, едем дальше
+•	Переходим к проверке емайл, для этого пишем код а индексе:
+$validation->field('email');
+•	Для проверки первое нам нужно проверить на соответствие с допустимым email-лом, делаем метод email(), копируем код из required, отличие в том что здесь уже нужно сравнить похоже ли текст на допустимый email, используем для это готовую функцию из php filter_var с параметром FILTER_VALIDATE_EMAIL…  
+public function email($other_error_message = '')
+{
+    if ($this->not_exist_field())
+        return $this;
+
+    if(!filter_var($this->values[$this->field],FILTER_VALIDATE_EMAIL)){
+        if(empty($other_error_message)){
+            $this->write_error('Поле "'.$this->field.'" должен быть емаил');
+        }else{
+            $this->write_error($other_error_message);
+        }
+
+    }
+    return $this;
+}
+
+•	Делаем проверку, и все работает… далее email нужно еще проверить на уникальность в базе данных, для этого нужно подключить базу и проверить
+•	Через __construct() добавляем параметр pdo, который можно передать при формирование обьекта  validator, или написать прямо в __construct
+•	function __construct(array $post_data, $pdo = null)
+{
+    $this->values = $post_data;
+    if($pdo == null){
+        $this->db = new PDO('mysql:host=192.168.1.14;dbname=studies;charset=utf8', 'student', 'Student123123456!');
+    }else{
+        $this->db = $pdo;
+    }
+
+}
+•	Пишем еще один protected метод который будет возвращать правду если email будет не уникальным
+	protected function not_unique_in_table(string $table, string $name_col, $value)
+{
+    $sql = "SELECT * FROM {$table} WHERE  {$name_col} = :{$name_col}";
+    $statement = $this->db->prepare($sql);
+    $statement->execute([$name_col => $value]);
+    $row = $statement->fetch(PDO::FETCH_ASSOC);
+    if ( empty($row) ) {
+    return false;
+}
+return true;
+
+}
+•	Далее пишем наш публичный метод unique:
+•	public function unique($table,$other_error_message = '')
+{
+    if ($this->not_exist_field() or $this->values[$this->field]=='')
+        return $this;
+
+    if($this->not_unique_in_table($table,$this->field,"{$this->values[$this->field]}")){
+        if(empty($other_error_message)){
+            $this->write_error("{$this->field} \"{$this->values[$this->field]}\" уже занят");
+        }else{
+            $this->write_error($other_error_message);
+        }
+
+    }
+    return $this;
+}
+•	проверяем, все работает
+•	Переходим к проверке пароля, пишем в индексе
+•	$validation->field('password')
+•	Его можно проверить на минимальное и максимальное количество символов, пишем min(), похож на наш required, только проверка будет на минимальное количество символов:
+•	public function min(int $min_len = 0,$other_error_message = '')
+{
+    if ($this->not_exist_field())
+        return $this;
+
+    if(strlen($this->values[$this->field]) < $min_len){
+        if(empty($other_error_message)){
+            $this->write_error("Минимальное количество символов в поле {$this->field}, должно быть \"{$min_len}\" ");
+        }else{
+            $this->write_error($other_error_message);
+        }
+
+    }
+    return $this;
+}
+•	пишем max(), вернее копируем min и меняем условия срабатывания ошибки
+ public function max(int $max_len = 10,$other_error_message = '')
+{
+    if ($this->not_exist_field())
+        return $this;
+
+    if(strlen($this->values[$this->field]) > $max_len){
+        if(empty($other_error_message)){
+            $this->write_error("Максимальное количество символов в поле {$this->field}, должно быть \"{$max_len}\" ");
+        }else{
+            $this->write_error($other_error_message);
+        }
+
+    }
+    return $this;
+}
+•	следующий на проверку будет confirm_password его можно проверить на совпадение с password, если же он не будет одинаковый, вернуть ошибку,
+будет похож на max() только условия срабатывания и сообщение об ошибке меняем соответственно 
+public function similar(string $password,$other_error_message = '')
+    {
+        if ($this->not_exist_field())
+            return $this;
+
+        if($this->values[$password] !== $this->values[$this->field] ){
+            if(empty($other_error_message)){
+                $this->write_error(" {$this->field}, должено быть одинаковым с \"{$password}\" ");
+            }else{
+                $this->write_error($other_error_message);
+            }
+
+        }
+        return $this;
+}
+•	Следующий будет проверка телефона, пишем для него метод tel, точнее копиреум предыдущий метод, и меняем условия сравнения срабатывания ошибок, здесь используем регулярное выражение, которое допустит только телефоны в любом международном формате
+•	public function tel($other_error_message = '')
+    {
+        if ($this->not_exist_field())
+            return $this;
+
+        if(!preg_match("/^(\s*)?(\+)?([- _():=+]?\d[- _():=+]?){10,14}(\s*)?$/", $this->values[$this->field])){
+            if(empty($other_error_message)){
+                $this->write_error(" {$this->field}, должено быть похож на номер телефона");
+            }else{
+                $this->write_error($other_error_message);
+            }
+
+        }
+        return $this;
+}
+•	Ну и на последок, пишем date, который будет проверять дату, так же копируем предыдущий метод, и меняем регулярное выражение под дату
+•	public function date($other_error_message = '')
+    {
+        if ($this->not_exist_field())
+            return $this;
+
+        if(!preg_match("/^(19|20)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/", $this->values[$this->field])){
+            if(empty($other_error_message)){
+                $this->write_error(" {$this->field}, должен быть датой");
+            }else{
+                $this->write_error($other_error_message);
+            }
+
+        }
+        return $this;
+}
+•	Пишем документацию, ГОТОВО!
+
+
